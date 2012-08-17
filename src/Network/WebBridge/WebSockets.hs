@@ -10,14 +10,14 @@ import Control.Monad.IO.Class
 import qualified Data.Aeson as JSON
 import qualified Network.WebSockets as WS
 
-runWebSocketServer :: WS.TextProtocol v => Server (WS.WebSockets v) a -> WS.Request -> WS.WebSockets v ()
+runWebSocketServer :: WS.TextProtocol v => Server a -> WS.Request -> WS.WebSockets v ()
 runWebSocketServer (Server server) req = WS.acceptRequest req >> (eval . view $ server) where
     eval p = case p of
         Return a -> return ()
         instr :>>= cont -> case instr of
-            Lift op -> op
+            LiftIO op -> liftIO $ op
             EvalWait c -> do
-                WS.sendTextData $ JSON.encode (ReqEval c 0)
+                WS.sendTextData $ JSON.encode (ReqEval c 0)
                 WS.Text bs <- WS.receiveDataMessage
                 let Just (Response a _) = JSON.decode' bs
                 return a

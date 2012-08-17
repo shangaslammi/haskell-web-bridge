@@ -15,7 +15,6 @@ import Data.Text.Lazy (Text)
 
 import Control.Applicative
 import Control.Monad.Operational
-import Control.Monad.Trans.Class
 import Control.Monad.IO.Class
 
 import qualified Data.Text.Lazy as T
@@ -42,12 +41,12 @@ data ClientInstr a where
 type Client = Program ClientInstr
 
 -- | Primitive instructions for the server side monad
-data ServerInstr m a where
-    Lift      :: m a -> ServerInstr m a
-    EvalWait  :: FromClient (JS a) => Client (JS a) -> ServerInstr m (ServerRep (JS a))
-    EvalAsync :: Client (JS a) -> ServerInstr m ()
+data ServerInstr a where
+    LiftIO    :: IO a -> ServerInstr a
+    EvalWait  :: FromClient (JS a) => Client (JS a) -> ServerInstr (ServerRep (JS a))
+    EvalAsync :: Client (JS a) -> ServerInstr ()
 
-newtype Server m a = Server (Program (ServerInstr m) a)
+newtype Server a = Server (Program ServerInstr a)
     deriving (Functor, Applicative, Monad)
 
 -- | A value in JavaScript that can either be a literal or
@@ -87,11 +86,8 @@ instance Monoid (JS String) where
 
 -- | Lifts for Server monad
 
-instance MonadTrans Server where
-    lift = Server . singleton . Lift
-
-instance MonadIO m => MonadIO (Server m) where
-    liftIO = Server . singleton . Lift . liftIO
+instance MonadIO Server where
+    liftIO = Server . singleton . LiftIO
 
 -- | Typeclass for JS-types that have a representative type in Haskell
 class JSON.FromJSON (ServerRep a) => FromClient a where
@@ -160,7 +156,7 @@ clientSource initId client = JSSource $ inClosure $ src ++ retRes where
                 (rest, res') = go (Var name) (varId+1) . cont . Var $ name
             in (assignment ++ rest, res')
 
-onClient :: FromClient (JS a) => ClientJS a -> Server m (ServerRep (JS a))
+onClient :: FromClient (JS a) => ClientJS a -> Server (ServerRep (JS a))
 onClient = Server . singleton . EvalWait
 
 emitJS :: JSSource (JS a) -> ClientJS a

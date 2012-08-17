@@ -19,7 +19,7 @@ import Prelude hiding ((++))
 
 runWarp :: IO ()
 runWarp = do
-    let app = runWebSocketServer test
+    let app = runWebSocketServer test :: WS.Request -> WS.WebSockets WS.Hybi00 ()
     Warp.runSettings Warp.defaultSettings
         { Warp.settingsPort = 8000
         , Warp.settingsIntercept = WaiWS.intercept app
@@ -36,7 +36,7 @@ promptName = do
     alert $ "Hello " ++ name
     return name
 
-test :: Server (WS.WebSockets WS.Hybi00) ()
+test :: Server ()
 test = do
     liftIO $ T.putStrLn "Web client connected"
 
