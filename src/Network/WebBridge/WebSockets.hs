@@ -11,14 +11,16 @@ import qualified Data.Aeson as JSON
 import qualified Network.WebSockets as WS
 
 runWebSocketServer :: WS.TextProtocol v => Server a -> WS.Request -> WS.WebSockets v ()
-runWebSocketServer (Server server) req = WS.acceptRequest req >> (eval . view $ server) where
-    eval p = case p of
-        Return a -> return ()
-        instr :>>= cont -> case instr of
-            LiftIO op -> liftIO $ op
-            EvalWait c -> do
+runWebSocketServer (Server server) req = do
+    let eval p = case view p of
+            Return a -> return ()
+            LiftIO op :>>= cont -> liftIO op >>= eval . cont
+            EvalWait c :>>= cont -> do
                 WS.sendTextData $ JSON.encode (ReqEval c 0)
                 WS.Text bs <- WS.receiveDataMessage
                 let Just (Response a _) = JSON.decode' bs
-                return a
-            >>= eval . view . cont
+                eval . cont $ a
+
+    WS.acceptRequest req
+    eval server
+
