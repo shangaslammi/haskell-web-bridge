@@ -101,10 +101,10 @@ data WebRequest where
     ReqEval  :: ClientJS a -> ReqId -> WebRequest
     ReqAsync :: ClientJS a -> WebRequest
 
-data WebResponse a where
-    Response :: JSON.FromJSON a => a -> ReqId -> WebResponse a
+data WebResponse where
+    Response :: JSON.Value -> ReqId -> WebResponse
 
-instance JSON.FromJSON a => JSON.FromJSON (WebResponse a) where
+instance JSON.FromJSON WebResponse where
     parseJSON (JSON.Object obj) =
         Response <$> (obj .: "result") <*> (obj .: "reqId")
 

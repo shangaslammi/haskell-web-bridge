@@ -18,22 +18,30 @@ runWebSocketServer :: WS.TextProtocol v => Server a -> WS.Request -> WS.WebSocke
 runWebSocketServer (Server server) req = do
     WS.acceptRequest req
 
+    reqId    <- liftIO $ newMVar (0 :: Int)
     reqMap   <- liftIO $ newMVar $ IntMap.empty
-    incoming <- liftIO $ newChan
     sink     <- WS.getSink
 
     let eval p = case view p of
             Return a -> return ()
             LiftIO op :>>= cont -> op >>= eval . cont
             EvalWait c :>>= cont -> do
-                WS.sendSink sink $ WS.DataMessage $ WS.Text $ JSON.encode (ReqEval c 0)
-                bs <- readChan incoming
-                let Just (Response a _) = JSON.decode' bs
-                eval . cont $ a
+                i <- takeMVar reqId
+                putMVar reqId (i+1)
+                WS.sendSink sink $ WS.DataMessage $ WS.Text $ JSON.encode (ReqEval c i)
+                rm <- takeMVar reqMap
+                let handler val = do
+                        let JSON.Success a = JSON.fromJSON val
+                        eval . cont $ a
+                putMVar reqMap $ IntMap.insert i handler rm
 
         receiveLoop = do
             WS.Text bs <- WS.receiveDataMessage
-            liftIO $ writeChan incoming bs
+            let Just (Response val i) = JSON.decode' bs
+            rm <- liftIO $ takeMVar reqMap
+            let Just cont = IntMap.lookup i rm
+                rm' = IntMap.delete i rm
+            liftIO $ putMVar reqMap rm' >> forkIO (cont val)
             receiveLoop
 
     liftIO $ forkIO $ eval server
