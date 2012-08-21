@@ -40,11 +40,16 @@ data ClientInstr a where
 --   JavaScript and ran in the browser.
 type Client = Program ClientInstr
 
+data WaitType = WaitSingle | WaitRepeated
+
 -- | Primitive instructions for the server side monad
 data ServerInstr a where
-    LiftIO    :: IO a -> ServerInstr a
-    EvalWait  :: FromClient (JS a) => Client (JS a) -> ServerInstr (ServerRep (JS a))
-    EvalAsync :: Client (JS a) -> ServerInstr ()
+    LiftIO     :: IO a -> ServerInstr a
+    NextReqId  :: ServerInstr ReqId
+    SendReq    :: WebRequest -> ServerInstr ()
+    WaitForRes :: ReqId -> WaitType -> ServerInstr WebResponse
+    EvalWait   :: FromClient (JS a) => Client (JS a) -> ServerInstr (ServerRep (JS a))
+    EvalAsync  :: Client (JS a) -> ServerInstr ()
 
 newtype Server a = Server (Program ServerInstr a)
     deriving (Functor, Applicative, Monad)
@@ -158,6 +163,9 @@ clientSource initId client = JSSource $ inClosure $ src ++ retRes where
 
 onClient :: FromClient (JS a) => ClientJS a -> Server (ServerRep (JS a))
 onClient = Server . singleton . EvalWait
+
+getReqId :: Server ReqId
+getReqId = Server . singleton $ NextReqId
 
 emitJS :: JSSource (JS a) -> ClientJS a
 emitJS = singleton . EmitJS
