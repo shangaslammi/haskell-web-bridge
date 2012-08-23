@@ -162,7 +162,13 @@ clientSource initId client = JSSource $ inClosure $ src ++ retRes where
             in (assignment ++ rest, res')
 
 onClient :: FromClient (JS a) => ClientJS a -> Server (ServerRep (JS a))
-onClient = Server . singleton . EvalWait
+onClient prog = do
+    rqId <- getReqId
+    let req = ReqEval prog rqId
+    Server . singleton $ SendReq req
+    Response val _ <- Server . singleton $ WaitForRes rqId WaitSingle
+    let JSON.Success a = JSON.fromJSON val
+    return a
 
 getReqId :: Server ReqId
 getReqId = Server . singleton $ NextReqId
