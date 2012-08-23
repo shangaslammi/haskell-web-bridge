@@ -48,8 +48,6 @@ data ServerInstr a where
     NextReqId  :: ServerInstr ReqId
     SendReq    :: WebRequest -> ServerInstr ()
     WaitForRes :: ReqId -> WaitType -> ServerInstr WebResponse
-    EvalWait   :: FromClient (JS a) => Client (JS a) -> ServerInstr (ServerRep (JS a))
-    EvalAsync  :: Client (JS a) -> ServerInstr ()
 
 newtype Server a = Server (Program ServerInstr a)
     deriving (Functor, Applicative, Monad)
