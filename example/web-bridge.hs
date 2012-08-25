@@ -40,6 +40,8 @@ test :: Server ()
 test = do
     liftIO $ T.putStrLn "Web client connected"
 
+    onClientAsync $ console "Hello console!"
+
     name <- onClient promptName
 
     liftIO $ T.putStrLn $ "Client's name is " ++ name

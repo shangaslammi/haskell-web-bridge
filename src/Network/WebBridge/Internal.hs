@@ -170,6 +170,11 @@ onClient prog = do
     let JSON.Success a = JSON.fromJSON val
     return a
 
+onClientAsync :: ClientJS a -> Server ()
+onClientAsync prog = do
+    let req = ReqAsync prog
+    Server . singleton $ SendReq req
+
 getReqId :: Server ReqId
 getReqId = Server . singleton $ NextReqId
 

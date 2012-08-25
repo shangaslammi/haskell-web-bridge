@@ -27,3 +27,6 @@ alert = nativeFunc1 "alert"
 
 prompt :: JS String -> ClientJS String
 prompt = nativeFunc1 "prompt"
+
+console :: JS String -> ClientJS ()
+console = nativeFunc1 "console.log"

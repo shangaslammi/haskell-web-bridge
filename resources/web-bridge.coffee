@@ -12,5 +12,5 @@ socket.onmessage = (msg) ->
                 reqId: reqId
             socket.send JSON.stringify response
         when "async"
-            eval msg.code
+            eval data.code
 
