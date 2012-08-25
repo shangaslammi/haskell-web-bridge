@@ -44,10 +44,10 @@ data WaitType = WaitSingle | WaitRepeated
 
 -- | Primitive instructions for the server side monad
 data ServerInstr a where
-    LiftIO     :: IO a -> ServerInstr a
-    NextReqId  :: ServerInstr ReqId
-    SendReq    :: WebRequest -> ServerInstr ()
-    WaitForRes :: ReqId -> WaitType -> ServerInstr WebResponse
+    LiftIO      :: IO a -> ServerInstr a
+    NextReqId   :: ServerInstr ReqId
+    SendReq     :: WebRequest Async -> ServerInstr ()
+    SendReqWait :: WebRequest Sync -> WaitType -> ServerInstr WebResponse
 
 newtype Server a = Server (Program ServerInstr a)
     deriving (Functor, Applicative, Monad)
@@ -99,10 +99,13 @@ class JSON.FromJSON (ServerRep a) => FromClient a where
 instance FromClient (JS String) where
     type ServerRep (JS String) = Text
 
+data Sync
+data Async
+
 -- | Type for requests from the server to client
-data WebRequest where
-    ReqEval  :: ClientJS a -> ReqId -> WebRequest
-    ReqAsync :: ClientJS a -> WebRequest
+data WebRequest s where
+    ReqEval  :: ClientJS a -> ReqId -> WebRequest Sync
+    ReqAsync :: ClientJS a -> WebRequest Async
 
 data WebResponse where
     Response :: JSON.Value -> ReqId -> WebResponse
@@ -113,7 +116,7 @@ instance JSON.FromJSON WebResponse where
 
     parseJSON _ = fail "invalid response"
 
-instance JSON.ToJSON WebRequest where
+instance JSON.ToJSON (WebRequest s) where
     toJSON req = case req of
         ReqEval c rqId -> JSON.object $
             [ "method" .= JSON.String "eval"
@@ -163,8 +166,7 @@ onClient :: FromClient (JS a) => ClientJS a -> Server (ServerRep (JS a))
 onClient prog = do
     rqId <- getReqId
     let req = ReqEval prog rqId
-    Server . singleton $ SendReq req
-    Response val _ <- Server . singleton $ WaitForRes rqId WaitSingle
+    Response val _ <- Server . singleton $ SendReqWait req WaitSingle
     let JSON.Success a = JSON.fromJSON val
     return a
 

@@ -22,20 +22,25 @@ runWebSocketServer (Server server) req = do
     reqMap   <- liftIO $ newMVar IntMap.empty
     sink     <- WS.getSink
 
-    let eval :: Program ServerInstr a -> IO ()
+    let sendReq :: WebRequest s -> IO ()
+        sendReq = WS.sendSink sink . WS.DataMessage . WS.Text . JSON.encode
+
+        eval :: Program ServerInstr a -> IO ()
         eval p = case view p of
             Return a -> return ()
-            LiftIO op :>>= cont -> op >>= eval . cont
-            NextReqId :>>= cont -> do
-                i <- takeMVar reqId
-                putMVar reqId $! (i+1)
-                eval . cont $ i
-            SendReq req :>>= cont -> do
-                WS.sendSink sink $ WS.DataMessage $ WS.Text $ JSON.encode req
-                eval . cont $ ()
-            WaitForRes rqId _ :>>= cont -> do
-                rm <- takeMVar reqMap
-                putMVar reqMap $ IntMap.insert rqId (eval . cont) rm
+            instr :>>= cont -> case instr of
+                LiftIO op -> op >>= eval . cont
+                NextReqId -> do
+                    i <- takeMVar reqId
+                    putMVar reqId $! (i+1)
+                    eval . cont $ i
+                SendReq req -> do
+                    sendReq req
+                    eval . cont $ ()
+                SendReqWait req@(ReqEval _ rqId) _ -> do
+                    rm <- takeMVar reqMap
+                    putMVar reqMap $ IntMap.insert rqId (eval . cont) rm
+                    sendReq req
 
         receiveLoop = do
             WS.Text bs <- WS.receiveDataMessage
